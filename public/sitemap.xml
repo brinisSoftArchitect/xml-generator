@@ -1,31 +1,27 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url>
-    <loc>https://ai.brimind.pro</loc>
-    <lastmod>2025-11-01T17:42:12.299Z</lastmod>
-  </url>
-  <url>
     <loc>https://brimind.pro</loc>
-    <lastmod>2025-11-01T17:42:12.299Z</lastmod>
+    <lastmod>2025-11-01T17:55:11.486Z</lastmod>
   </url>
   <url>
-    <loc>https://games.brimind.pro</loc>
-    <lastmod>2025-11-01T17:42:12.299Z</lastmod>
+    <loc>https://brimind.pro/index.html</loc>
+    <lastmod>2025-11-01T17:55:11.486Z</lastmod>
   </url>
   <url>
-    <loc>https://games.brimind.pro/games</loc>
-    <lastmod>2025-11-01T17:42:12.299Z</lastmod>
+    <loc>https://brimind.pro/project-detail.html?project=innovation-hub</loc>
+    <lastmod>2025-11-01T17:55:11.486Z</lastmod>
   </url>
   <url>
-    <loc>https://multi.brimind.pro</loc>
-    <lastmod>2025-11-01T17:42:12.299Z</lastmod>
+    <loc>https://brimind.pro/project-detail.html?project=interactive-dashboard</loc>
+    <lastmod>2025-11-01T17:55:11.486Z</lastmod>
   </url>
   <url>
-    <loc>https://news.brimind.pro</loc>
-    <lastmod>2025-11-01T17:42:12.299Z</lastmod>
+    <loc>https://brimind.pro/project-detail.html?project=smart-analytics</loc>
+    <lastmod>2025-11-01T17:55:11.486Z</lastmod>
   </url>
   <url>
     <loc>https://www.brimind.pro</loc>
-    <lastmod>2025-11-01T17:42:12.299Z</lastmod>
+    <lastmod>2025-11-01T17:55:11.486Z</lastmod>
   </url>
 </urlset>

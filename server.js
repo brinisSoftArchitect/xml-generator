@@ -51,6 +51,8 @@ async function crawlPage(url, baseDomain, depth = 0) {
   allUrls.add(normalized);
   
   console.log(`Crawling (depth: ${depth}): ${normalized}`);
+  
+  await saveSitemapIncremental();
 
   try {
     const page = await browser.newPage();
@@ -141,6 +143,14 @@ function generateSitemap(urls) {
   return xml;
 }
 
+async function saveSitemapIncremental() {
+  const xml = generateSitemap(Array.from(allUrls).sort());
+  const publicDir = path.join(__dirname, 'public');
+  await fs.mkdir(publicDir, { recursive: true });
+  await fs.writeFile(path.join(publicDir, 'sitemap.xml'), xml);
+  console.log(`Sitemap updated: ${allUrls.size} URLs`);
+}
+
 async function generateSitemapFile() {
   console.log('Starting sitemap generation...');
   
@@ -160,13 +170,7 @@ async function generateSitemapFile() {
     await crawlPage(subdomain, subdomain);
   }
 
-  const xml = generateSitemap(Array.from(allUrls).sort());
-  
-  const publicDir = path.join(__dirname, 'public');
-  await fs.mkdir(publicDir, { recursive: true });
-  await fs.writeFile(path.join(publicDir, 'sitemap.xml'), xml);
-  
-  console.log(`\nSitemap generated with ${allUrls.size} URLs`);
+  console.log(`\nSitemap generation complete with ${allUrls.size} URLs`);
   console.log('Saved to: public/sitemap.xml\n');
 }
 
