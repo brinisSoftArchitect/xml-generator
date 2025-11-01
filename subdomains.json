@@ -1,9 +1,10 @@
 {
   "subdomains": [
     "https://brimind.pro",
+    "https://www.brimind.pro",
+    "https://multi.brimind.pro",
     "https://games.brimind.pro",
     "https://games.brimind.pro/games",
-    
     "https://ai.brimind.pro",
     "https://news.brimind.pro"
   ]

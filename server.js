@@ -1,31 +1,25 @@
 const express = require('express');
-const cheerio = require('cheerio');
 const fs = require('fs').promises;
 const path = require('path');
+const puppeteer = require('puppeteer');
 
 const app = express();
-const PORT = 3000;
+const PORT =  9009;
 
-const config = {
-  subdomains: [
-      "https://games.brimind.pro/games",
-    "https://brimind.pro",
-    "https://www.brimind.pro",
-    "https://games.brimind.pro",
-    "https://ai.brimind.pro",
-    "https://news.brimind.pro"
-  ]
-};
-
-// Store visited URLs to avoid duplicates
+let config = {};
 const visitedUrls = new Set();
 const allUrls = new Set();
+let browser = null;
 
-// Normalize URL (remove trailing slash, fragments, etc.)
+async function loadConfig() {
+  const data = await fs.readFile('subdomains.json', 'utf8');
+  config = JSON.parse(data);
+}
+
 function normalizeUrl(url) {
   try {
     const urlObj = new URL(url);
-    urlObj.hash = ''; // Remove fragment
+    urlObj.hash = '';
     let normalized = urlObj.href;
     if (normalized.endsWith('/')) {
       normalized = normalized.slice(0, -1);
@@ -36,7 +30,6 @@ function normalizeUrl(url) {
   }
 }
 
-// Check if URL belongs to the subdomain
 function isSameDomain(url, baseDomain) {
   try {
     const urlObj = new URL(url);
@@ -47,11 +40,10 @@ function isSameDomain(url, baseDomain) {
   }
 }
 
-// Fetch and parse URLs from a page
 async function crawlPage(url, baseDomain, depth = 0) {
   const normalized = normalizeUrl(url);
   
-  if (!normalized || visitedUrls.has(normalized) || !isSameDomain(normalized, baseDomain)) {
+  if (!normalized || visitedUrls.has(normalized) || !isSameDomain(normalized, baseDomain) || depth > 10) {
     return;
   }
 
@@ -61,108 +53,78 @@ async function crawlPage(url, baseDomain, depth = 0) {
   console.log(`Crawling (depth: ${depth}): ${normalized}`);
 
   try {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 10000);
-
-    const response = await fetch(normalized, {
-      headers: { 'User-Agent': 'Mozilla/5.0 (compatible; SitemapBot/1.0)' },
-      signal: controller.signal
-    });
-
-    clearTimeout(timeoutId);
-
-    if (!response.ok) {
-      console.log(`Skipping ${normalized}: Status ${response.status}`);
-      return;
-    }
-
-    const contentType = response.headers.get('content-type');
-    if (!contentType || !contentType.includes('text/html')) {
-      console.log(`Skipping ${normalized}: Not HTML`);
-      return;
-    }
-
-    const html = await response.text();
-    const $ = cheerio.load(html);
-
-    // Find all links
-    const links = new Set();
+    const page = await browser.newPage();
     
-    // Check <a> tags
-    $('a[href]').each((i, el) => {
-      const href = $(el).attr('href');
-      if (href) {
-        try {
-          const absoluteUrl = new URL(href, normalized).href;
-          const normalizedLink = normalizeUrl(absoluteUrl);
-          if (normalizedLink && isSameDomain(normalizedLink, baseDomain) && !visitedUrls.has(normalizedLink)) {
-            links.add(normalizedLink);
-          }
-        } catch (e) {
-          // Invalid URL, skip
+    await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36');
+    
+    await page.goto(normalized, {
+      waitUntil: 'networkidle2',
+      timeout: 30000
+    });
+
+    await new Promise(resolve => setTimeout(resolve, 2000));
+
+    const links = await page.evaluate(() => {
+      const foundLinks = new Set();
+      
+      document.querySelectorAll('a[href]').forEach(a => {
+        const href = a.getAttribute('href');
+        if (href) {
+          try {
+            const absoluteUrl = new URL(href, window.location.href).href;
+            foundLinks.add(absoluteUrl);
+          } catch (e) {}
         }
-      }
-    });
-
-    // Check all elements with href attribute (like area, link, etc)
-    $('[href]').each((i, el) => {
-      const href = $(el).attr('href');
-      if (href && href.startsWith('http')) {
-        try {
-          const absoluteUrl = new URL(href, normalized).href;
-          const normalizedLink = normalizeUrl(absoluteUrl);
-          if (normalizedLink && isSameDomain(normalizedLink, baseDomain) && !visitedUrls.has(normalizedLink)) {
-            links.add(normalizedLink);
-          }
-        } catch (e) {}
-      }
-    });
-
-    // Check data attributes and other attributes that might contain URLs
-    $('[data-href], [data-url], [data-link]').each((i, el) => {
-      const dataHref = $(el).attr('data-href') || $(el).attr('data-url') || $(el).attr('data-link');
-      if (dataHref) {
-        try {
-          const absoluteUrl = new URL(dataHref, normalized).href;
-          const normalizedLink = normalizeUrl(absoluteUrl);
-          if (normalizedLink && isSameDomain(normalizedLink, baseDomain) && !visitedUrls.has(normalizedLink)) {
-            links.add(normalizedLink);
-          }
-        } catch (e) {}
-      }
-    });
-
-    // Extract URLs from inline scripts and HTML content
-    const urlRegex = new RegExp(`https?:\/\/(www\.)?${baseDomain.replace('https://', '').replace('http://', '')}[^\s"'\)\]}>]*`, 'gi');
-    const matches = html.match(urlRegex);
-    if (matches) {
-      matches.forEach(url => {
-        try {
-          const normalizedLink = normalizeUrl(url);
-          if (normalizedLink && isSameDomain(normalizedLink, baseDomain) && !visitedUrls.has(normalizedLink)) {
-            links.add(normalizedLink);
-          }
-        } catch (e) {}
       });
-    }
 
-    console.log(`Found ${links.size} new links on ${normalized}`);
+      document.querySelectorAll('[data-href], [data-url]').forEach(el => {
+        const href = el.getAttribute('data-href') || el.getAttribute('data-url');
+        if (href) {
+          try {
+            const absoluteUrl = new URL(href, window.location.href).href;
+            foundLinks.add(absoluteUrl);
+          } catch (e) {}
+        }
+      });
 
-    // Crawl found links recursively
-    for (const link of links) {
+      document.querySelectorAll('button, div').forEach(el => {
+        const onclick = el.getAttribute('onclick');
+        if (onclick) {
+          const urlMatch = onclick.match(/['"]([^'"]*)['"]/);
+          if (urlMatch) {
+            try {
+              const absoluteUrl = new URL(urlMatch[1], window.location.href).href;
+              foundLinks.add(absoluteUrl);
+            } catch (e) {}
+          }
+        }
+      });
+
+      return Array.from(foundLinks);
+    });
+
+    await page.close();
+
+    const validLinks = links.filter(link => {
+      const normalizedLink = normalizeUrl(link);
+      return normalizedLink && 
+             isSameDomain(normalizedLink, baseDomain) && 
+             !visitedUrls.has(normalizedLink) &&
+             !link.includes('#') &&
+             !link.match(/\.(jpg|jpeg|png|gif|pdf|zip|css|js)$/i);
+    });
+
+    console.log(`Found ${validLinks.length} new links on ${normalized}`);
+
+    for (const link of validLinks) {
       await crawlPage(link, baseDomain, depth + 1);
     }
 
   } catch (error) {
-    if (error.name === 'AbortError') {
-      console.error(`Timeout crawling ${normalized}`);
-    } else {
-      console.error(`Error crawling ${normalized}:`, error.message);
-    }
+    console.error(`Error crawling ${normalized}:`, error.message);
   }
 }
 
-// Generate sitemap XML
 function generateSitemap(urls) {
   const now = new Date().toISOString();
   let xml = '<?xml version="1.0" encoding="UTF-8"?>\n';
@@ -179,23 +141,27 @@ function generateSitemap(urls) {
   return xml;
 }
 
-// Main crawl function
 async function generateSitemapFile() {
   console.log('Starting sitemap generation...');
   
+  await loadConfig();
   visitedUrls.clear();
   allUrls.clear();
 
-  // Crawl each subdomain
+  if (!browser) {
+    browser = await puppeteer.launch({
+      headless: 'new',
+      args: ['--no-sandbox', '--disable-setuid-sandbox']
+    });
+  }
+
   for (const subdomain of config.subdomains) {
     console.log(`\nCrawling subdomain: ${subdomain}`);
     await crawlPage(subdomain, subdomain);
   }
 
-  // Generate sitemap
   const xml = generateSitemap(Array.from(allUrls).sort());
   
-  // Save to public folder
   const publicDir = path.join(__dirname, 'public');
   await fs.mkdir(publicDir, { recursive: true });
   await fs.writeFile(path.join(publicDir, 'sitemap.xml'), xml);
@@ -204,15 +170,12 @@ async function generateSitemapFile() {
   console.log('Saved to: public/sitemap.xml\n');
 }
 
-// Run immediately on startup
 generateSitemapFile().catch(console.error);
 
-// Run every hour
 setInterval(() => {
   generateSitemapFile().catch(console.error);
 }, 60 * 60 * 1000);
 
-// Serve static files
 app.use(express.static('public'));
 
 app.get('/', (req, res) => {
@@ -222,4 +185,11 @@ app.get('/', (req, res) => {
 app.listen(PORT, () => {
   console.log(`Server running on http://localhost:${PORT}`);
   console.log('Sitemap will be regenerated every hour');
+});
+
+process.on('SIGINT', async () => {
+  if (browser) {
+    await browser.close();
+  }
+  process.exit();
 });
