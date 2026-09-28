@@ -134,3 +134,16 @@ dist
 .yarn/build-state.yml
 .yarn/install-state.gz
 .pnp.*
+
+# ── Secrets — never commit real values ──────────────────────────────────────
+.env
+.env.*
+.env-*
+.envProd
+.envDev
+.env copy
+.env copy *
+keys/
+*.pem
+*.key
+# ────────────────────────────────────────────────────────────────────────────
